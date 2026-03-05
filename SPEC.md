@@ -21,23 +21,23 @@ AI agents (Claude, GPT, etc.) that need to browse the web via CLI tool calls. Th
 
 ```
 ┌─────────┐     Unix Socket      ┌──────────────┐     Playwright      ┌───────────┐
-│  CLI    │ ──────────────────> │   Daemon     │ ───────────────── │ Camoufox  │
-│ (cfox)  │ <────────────────── │  (Python)    │ <───────────────── │ (Firefox)  │
+│   CLI   │ ──────────────────> │   Daemon     │ ───────────────── │ Camoufox  │
+│  (camoufox-cli) │ <────────────────── │  (Python)    │ <───────────────── │ (Firefox)  │
 └─────────┘     JSON response   └──────────────┘                    └───────────┘
 ```
 
 ### Components
 
-1. **CLI entry point** (`cfox`): Thin client. Parses args, sends JSON command to daemon via Unix socket, prints response. Should start in <50ms.
-2. **Daemon** (`cfox-server`): Long-running Python process. Manages Camoufox browser instance, handles commands, maintains ref registry. Auto-spawned by CLI on first command.
-3. **Ref Registry**: Maps `@e1`, `@e2` refs to Playwright locators. Invalidated on navigation/DOM changes. Rebuilt on each `snapshot`.
+1. **CLI entry point** (`camoufox-cli`): Python client. Parses args, sends JSON command to daemon via Unix socket, prints response.
+2. **Daemon** (`python -m camoufox_cli`): Long-running Python process. Manages Camoufox browser instance, handles commands, maintains ref registry. Auto-spawned by CLI on first command.
+3. **Ref Registry**: Maps `@e1`, `@e2` refs to Playwright locators. Rebuilt on each `snapshot`.
 
 ### Session Management
 
 - Default session: `default`
-- Named sessions: `cfox --session mysession open https://...`
-- Socket path: `/tmp/cfox-{session}.sock`
-- PID file: `/tmp/cfox-{session}.pid`
+- Named sessions: `camoufox-cli --session mysession open https://...`
+- Socket path: `/tmp/camoufox-cli-{session}.sock`
+- PID file: `/tmp/camoufox-cli-{session}.pid`
 - Auto-start: If daemon not running, CLI spawns it as background process
 - Auto-shutdown: Daemon exits after 30 min idle (configurable via `--timeout`)
 
@@ -46,21 +46,21 @@ AI agents (Claude, GPT, etc.) that need to browse the web via CLI tool calls. Th
 ### Navigation
 
 ```bash
-cfox open <url>                    # Navigate to URL (starts daemon if needed)
-cfox back                          # Go back
-cfox forward                       # Go forward
-cfox reload                        # Reload page
-cfox close                         # Close browser and stop daemon
-cfox url                           # Print current URL
-cfox title                         # Print page title
+camoufox-cli open <url>                    # Navigate to URL (starts daemon if needed)
+camoufox-cli back                          # Go back
+camoufox-cli forward                       # Go forward
+camoufox-cli reload                        # Reload page
+camoufox-cli close                         # Close browser and stop daemon
+camoufox-cli url                           # Print current URL
+camoufox-cli title                         # Print page title
 ```
 
 ### Snapshot (Core Feature)
 
 ```bash
-cfox snapshot                      # Full aria tree of page
-cfox snapshot -i                   # Interactive elements only (buttons, links, inputs, etc.)
-cfox snapshot -s "css-selector"    # Scoped to CSS selector
+camoufox-cli snapshot                      # Full aria tree of page
+camoufox-cli snapshot -i                   # Interactive elements only (buttons, links, inputs, etc.)
+camoufox-cli snapshot -s "css-selector"    # Scoped to CSS selector
 ```
 
 **Output format** (matches agent-browser):
@@ -77,61 +77,61 @@ Refs are assigned sequentially per snapshot. Interactive-only mode (`-i`) filter
 ### Interaction (use refs from snapshot)
 
 ```bash
-cfox click @e1                     # Click element
-cfox fill @e3 "search query"       # Clear + type into input
-cfox type @e3 "append text"        # Type without clearing
-cfox select @e5 "option text"      # Select dropdown option
-cfox check @e6                     # Toggle checkbox
-cfox hover @e2                     # Hover over element
-cfox press Enter                   # Press keyboard key
-cfox press "Control+a"             # Key combination
+camoufox-cli click @e1                     # Click element
+camoufox-cli fill @e3 "search query"       # Clear + type into input
+camoufox-cli type @e3 "append text"        # Type without clearing
+camoufox-cli select @e5 "option text"      # Select dropdown option
+camoufox-cli check @e6                     # Toggle checkbox
+camoufox-cli hover @e2                     # Hover over element
+camoufox-cli press Enter                   # Press keyboard key
+camoufox-cli press "Control+a"             # Key combination
 ```
 
 ### Data Extraction
 
 ```bash
-cfox text @e1                      # Get text content of element
-cfox text body                     # Get all page text (CSS selector)
-cfox eval "document.title"         # Execute JavaScript
-cfox screenshot                    # Screenshot to stdout (base64) or auto-save
-cfox screenshot page.png           # Screenshot to file
-cfox screenshot --full page.png    # Full page screenshot
-cfox pdf output.pdf                # Save as PDF
+camoufox-cli text @e1                      # Get text content of element
+camoufox-cli text body                     # Get all page text (CSS selector)
+camoufox-cli eval "document.title"         # Execute JavaScript
+camoufox-cli screenshot                    # Screenshot to stdout (base64) or auto-save
+camoufox-cli screenshot page.png           # Screenshot to file
+camoufox-cli screenshot --full page.png    # Full page screenshot
+camoufox-cli pdf output.pdf                # Save as PDF
 ```
 
 ### Scroll & Wait
 
 ```bash
-cfox scroll down                   # Scroll down 500px
-cfox scroll up                     # Scroll up 500px
-cfox scroll down 1000              # Scroll down 1000px
-cfox wait @e1                      # Wait for element to appear
-cfox wait 2000                     # Wait milliseconds
-cfox wait --url "*/dashboard"      # Wait for URL pattern
+camoufox-cli scroll down                   # Scroll down 500px
+camoufox-cli scroll up                     # Scroll up 500px
+camoufox-cli scroll down 1000              # Scroll down 1000px
+camoufox-cli wait @e1                      # Wait for element to appear
+camoufox-cli wait 2000                     # Wait milliseconds
+camoufox-cli wait --url "*/dashboard"      # Wait for URL pattern
 ```
 
 ### Tab Management
 
 ```bash
-cfox tabs                          # List open tabs
-cfox switch 2                      # Switch to tab by index
-cfox close-tab                     # Close current tab
+camoufox-cli tabs                          # List open tabs
+camoufox-cli switch 2                      # Switch to tab by index
+camoufox-cli close-tab                     # Close current tab
 ```
 
 ### Session Management
 
 ```bash
-cfox sessions                      # List active sessions
-cfox --session work open <url>     # Use named session
-cfox close --all                   # Close all sessions
+camoufox-cli sessions                      # List active sessions
+camoufox-cli --session work open <url>     # Use named session
+camoufox-cli close --all                   # Close all sessions
 ```
 
 ### Cookies & State
 
 ```bash
-cfox cookies                       # Dump cookies as JSON
-cfox cookies import file.json      # Import cookies
-cfox cookies export file.json      # Export cookies
+camoufox-cli cookies                       # Dump cookies as JSON
+camoufox-cli cookies import file.json      # Import cookies
+camoufox-cli cookies export file.json      # Export cookies
 ```
 
 ## Global Flags
@@ -198,7 +198,7 @@ The ref system maps `@e1`, `@e2` to elements:
 1. `snapshot` calls `page.locator("body").aria_snapshot()` to get the full tree
 2. Parse the tree text, assign sequential refs to each element
 3. Store a mapping: `e1 -> "link 'About'"`, `e2 -> "combobox 'Search'"`, etc.
-4. When user runs `cfox click @e1`, look up the aria role+name, use `page.get_by_role()` to find the element
+4. When user runs `camoufox-cli click @e1`, look up the aria role+name, use `page.get_by_role()` to find the element
 
 **Key**: Use Playwright's `get_by_role()` for reliable element location:
 ```python
@@ -231,18 +231,18 @@ CLI ↔ Daemon communicate via JSON-line over Unix socket:
 
 **Error:**
 ```json
-{"id": "r003", "success": false, "error": "Element @e1 not found. Run 'cfox snapshot' to refresh refs."}
+{"id": "r003", "success": false, "error": "Element @e1 not found. Run 'camoufox-cli snapshot' to refresh refs."}
 ```
 
 ### Daemon Lifecycle
 
 ```
-cfox open https://example.com
+camoufox-cli open https://example.com
   │
-  ├── Check /tmp/cfox-default.sock exists?
+  ├── Check /tmp/camoufox-cli-default.sock exists?
   │   ├── YES → Connect, send command
   │   └── NO → Spawn daemon:
-  │           python -m cfox.server --session default --headless &
+  │           python -m camoufox-cli.server --session default --headless &
   │           Wait for socket (up to 15s)
   │           Connect, send command
   │
@@ -273,54 +273,52 @@ These work automatically — no CLI flags needed:
 
 ```bash
 # 1. Basic lifecycle
-cfox open https://example.com
-cfox snapshot -i
-cfox title
-cfox close
+camoufox-cli open https://example.com
+camoufox-cli snapshot -i
+camoufox-cli title
+camoufox-cli close
 
 # 2. Google search
-cfox open https://www.google.com
-cfox snapshot -i
-cfox fill @e<search> "camoufox test"
-cfox press Enter
-cfox snapshot -i        # Should show search results
+camoufox-cli open https://www.google.com
+camoufox-cli snapshot -i
+camoufox-cli fill @e<search> "camoufox test"
+camoufox-cli press Enter
+camoufox-cli snapshot -i        # Should show search results
 
 # 3. Anti-detection
-cfox open https://bot.sannysoft.com/
-cfox eval "navigator.webdriver"    # Should return "false"
-cfox eval "navigator.plugins.length"  # Should return > 0
+camoufox-cli open https://bot.sannysoft.com/
+camoufox-cli eval "navigator.webdriver"    # Should return "false"
+camoufox-cli eval "navigator.plugins.length"  # Should return > 0
 
 # 4. Twitter (agent-browser fails here)
-cfox open https://x.com/elonmusk
-cfox snapshot -i        # Should show profile info, not login wall
+camoufox-cli open https://x.com/elonmusk
+camoufox-cli snapshot -i        # Should show profile info, not login wall
 
 # 5. Session persistence
-cfox --session test1 open https://example.com
-cfox --session test2 open https://google.com
-cfox sessions           # Should list both
-cfox --session test1 title  # "Example Domain"
-cfox close --all
+camoufox-cli --session test1 open https://example.com
+camoufox-cli --session test2 open https://google.com
+camoufox-cli sessions           # Should list both
+camoufox-cli --session test1 title  # "Example Domain"
+camoufox-cli close --all
 ```
 
 ## Project Structure
 
 ```
 camoufox-cli/
-├── pyproject.toml          # Package config (entry point: cfox)
+├── pyproject.toml          # Package config (entry point: camoufox-cli)
 ├── README.md
+├── package.json            # npm package config
 ├── src/
-│   └── cfox/
+│   └── camoufox_cli/
 │       ├── __init__.py
-│       ├── __main__.py     # python -m cfox
+│       ├── __main__.py     # python -m camoufox_cli (daemon entry point)
 │       ├── cli.py          # CLI argument parsing + socket client
-│       ├── server.py       # Daemon: Camoufox management + command handling
+│       ├── server.py       # Daemon: Unix socket server + lifecycle
+│       ├── browser.py      # BrowserManager: Camoufox instance management
 │       ├── refs.py         # Ref registry (aria tree → @e1 mapping)
 │       ├── commands.py     # Command implementations (open, click, fill, etc.)
 │       └── protocol.py     # JSON-line protocol helpers
-└── tests/
-    ├── test_refs.py        # Ref parsing unit tests
-    ├── test_commands.py    # Command integration tests
-    └── test_smoke.py       # End-to-end smoke tests
 ```
 
 ## Environment Info
@@ -337,7 +335,7 @@ camoufox-cli/
 ```bash
 cd camoufox-cli
 pipx install . --python python3.12
-# This makes `cfox` globally available
+# This makes `camoufox-cli` globally available
 ```
 
 ## Key Constraints
