@@ -35,6 +35,10 @@ class DaemonServer:
         watchdog = threading.Thread(target=self._idle_watchdog, daemon=True)
         watchdog.start()
 
+        # Start Turnstile background checker
+        turnstile = threading.Thread(target=self._turnstile_checker, daemon=True)
+        turnstile.start()
+
         # Set up signal handlers
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT, self._handle_signal)
@@ -89,6 +93,21 @@ class DaemonServer:
         # If close command, shut down the daemon
         if command.get("action") == "close":
             self._running = False
+
+    def _turnstile_checker(self) -> None:
+        """Periodically click Cloudflare Turnstile checkbox if present."""
+        while self._running:
+            time.sleep(3)
+            if not self._running:
+                break
+            if not self.manager.is_running:
+                continue
+            try:
+                page = self.manager.get_page()
+                frame = page.frame_locator('iframe[src*="challenges.cloudflare.com"]')
+                frame.locator(".ctp-checkbox-container").click(timeout=500)
+            except Exception:
+                pass  # No Turnstile present — this is normal
 
     def _idle_watchdog(self) -> None:
         while self._running:
