@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import os
+import shutil
+from pathlib import Path
 from urllib.parse import urlparse
 
 from camoufox.sync_api import Camoufox
 from playwright.sync_api import BrowserContext, Page
 
+from .config import CAPSOLVER_XPI_PATH, has_capsolver_xpi, read_config
 from .refs import RefRegistry
 
 
@@ -19,6 +24,71 @@ def _ensure_browser_installed() -> None:
         raise RuntimeError(
             "Browser not found. Run `camoufox-cli install` to download it."
         )
+
+
+def _install_capsolver_to_profile(profile_path: str) -> None:
+    """Copy CapSolver XPI into the Firefox profile's extensions directory."""
+    cfg = read_config()
+    if not cfg.get("capsolver_extension_id") or not has_capsolver_xpi():
+        return
+
+    ext_dir = Path(profile_path) / "extensions"
+    ext_dir.mkdir(parents=True, exist_ok=True)
+    dest_xpi = ext_dir / f"{cfg['capsolver_extension_id']}.xpi"
+    if not dest_xpi.exists():
+        shutil.copy2(str(CAPSOLVER_XPI_PATH), str(dest_xpi))
+
+
+def _configure_capsolver_key(context: BrowserContext, profile_path: str) -> None:
+    """
+    Configure CapSolver API key in the extension after browser launch.
+    Reads the Firefox-assigned UUID from extensions-uuid.json, navigates to
+    the extension's options page, and injects the key via chrome.storage / localStorage.
+    """
+    cfg = read_config()
+    if not cfg.get("capsolver_api_key") or not cfg.get("capsolver_extension_id"):
+        return
+
+    uuid_map_path = os.path.join(profile_path, "extensions-uuid.json")
+    if not os.path.exists(uuid_map_path):
+        return  # Extension not yet registered by Firefox
+
+    try:
+        with open(uuid_map_path) as f:
+            uuid_map = json.load(f)
+        uuid = uuid_map.get(cfg["capsolver_extension_id"])
+        if not uuid:
+            return
+    except Exception:
+        return
+
+    page = context.new_page()
+    try:
+        page.goto(
+            f"moz-extension://{uuid}/options.html",
+            timeout=5000,
+            wait_until="domcontentloaded",
+        )
+        # Inject the API key via chrome.storage and localStorage (both used by CapSolver)
+        page.evaluate(
+            """(key) => {
+                const store =
+                    (typeof chrome !== 'undefined' && chrome?.storage?.local) ||
+                    (typeof browser !== 'undefined' && browser?.storage?.local);
+                if (store) store.set({ apiKey: key });
+                localStorage.setItem('capsolver_apikey', key);
+                localStorage.setItem('apiKey', key);
+            }""",
+            cfg["capsolver_api_key"],
+        )
+    except Exception:
+        # Options page not found or unavailable — non-fatal, user can configure manually
+        pass
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
 
 
 class BrowserManager:
@@ -63,6 +133,7 @@ class BrowserManager:
                 proxy["password"] = parsed.password
             kwargs["proxy"] = proxy
         if self._persistent:
+            _install_capsolver_to_profile(self._persistent)
             kwargs["persistent_context"] = True
             kwargs["user_data_dir"] = self._persistent
 
@@ -74,6 +145,8 @@ class BrowserManager:
             self._context = result
             pages = self._context.pages
             self._page = pages[0] if pages else self._context.new_page()
+
+            _configure_capsolver_key(self._context, self._persistent)
         else:
             # Normal mode: result is Browser, new_page() creates default context + page
             self._page = result.new_page()

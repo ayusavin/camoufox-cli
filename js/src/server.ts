@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import { BrowserManager } from "./browser.js";
 import { execute } from "./commands.js";
 import { parseCommand, serializeResponse } from "./protocol.js";
+import { checkTurnstile } from "./turnstile.js";
 
 export class DaemonServer {
   private session: string;
@@ -16,6 +17,7 @@ export class DaemonServer {
   private server: net.Server | null = null;
   private lastActivity = Date.now();
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+  private turnstileTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(opts: { session?: string; headless?: boolean; timeout?: number; persistent?: string | null; proxy?: string | null }) {
     this.session = opts.session ?? "default";
@@ -49,6 +51,11 @@ export class DaemonServer {
     });
 
     process.stderr.write(`[camoufox-cli] Daemon listening session=${this.session}\n`);
+
+    // Turnstile background checker: clicks Cloudflare Turnstile checkbox every 3s
+    this.turnstileTimer = setInterval(async () => {
+      await checkTurnstile(this.manager);
+    }, 3000);
 
     // Wait until server closes
     await new Promise<void>((resolve) => {
@@ -120,6 +127,7 @@ export class DaemonServer {
 
   private async shutdown(): Promise<void> {
     if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+    if (this.turnstileTimer) clearInterval(this.turnstileTimer);
     await this.manager.close();
     if (this.server) {
       try { this.server.close(); } catch {}

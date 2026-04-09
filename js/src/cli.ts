@@ -7,6 +7,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import {
+  readConfig,
+  writeConfig,
+  hasCapsolverXpi,
+  CAPSOLVER_XPI_PATH,
+  EXTENSIONS_DIR,
+} from "./config.js";
 
 const SOCKET_PREFIX = "/tmp/camoufox-cli-";
 
@@ -233,6 +240,10 @@ export function buildCommand(action: string, rest: string[]): Record<string, unk
       return { id: "r1", action: "sessions", params: {} };
     case "install":
       return { id: "r1", action: "install", params: { with_deps: rest.includes("--with-deps") } };
+    case "capsolver-setup":
+      return { id: "r1", action: "capsolver-setup", params: { api_key: require_(rest, 1, "Usage: camoufox-cli capsolver-setup <api-key>") } };
+    case "capsolver-status":
+      return { id: "r1", action: "capsolver-status", params: {} };
     case "cookies": {
       if (rest.length > 1 && rest[1] === "import")
         return { id: "r1", action: "cookies", params: { op: "import", path: require_(rest, 2, "Usage: camoufox-cli cookies import file.json") } };
@@ -345,6 +356,54 @@ function installSystemDeps(): void {
 }
 
 // ---------------------------------------------------------------------------
+// CapSolver setup helpers
+// ---------------------------------------------------------------------------
+
+async function doCapsolverSetup(apiKey: string): Promise<void> {
+  process.stderr.write("[camoufox-cli] Fetching CapSolver extension info from Mozilla...\n");
+
+  const apiUrl = "https://services.addons.mozilla.org/api/v5/addons/addon/capsolver-captcha-solver/";
+  const metaResp = await fetch(apiUrl, {
+    headers: { "User-Agent": "camoufox-cli/1.0" },
+  });
+  if (!metaResp.ok) {
+    process.stderr.write(`Error: Mozilla API returned ${metaResp.status}\n`);
+    process.exit(1);
+  }
+  const meta = await metaResp.json() as any;
+  const extensionId: string = meta.guid;
+  const downloadUrl: string = meta.current_version.file.url;
+
+  process.stderr.write(`[camoufox-cli] Downloading CapSolver XPI (id: ${extensionId})...\n`);
+
+  fs.mkdirSync(EXTENSIONS_DIR, { recursive: true });
+  const xpiResp = await fetch(downloadUrl, {
+    headers: { "User-Agent": "camoufox-cli/1.0" },
+  });
+  if (!xpiResp.ok) {
+    process.stderr.write(`Error: XPI download returned ${xpiResp.status}\n`);
+    process.exit(1);
+  }
+  const xpiBuffer = await xpiResp.arrayBuffer();
+  fs.writeFileSync(CAPSOLVER_XPI_PATH, Buffer.from(xpiBuffer));
+
+  const cfg = readConfig();
+  writeConfig({ ...cfg, capsolver_api_key: apiKey, capsolver_extension_id: extensionId });
+
+  process.stderr.write(`[camoufox-cli] CapSolver ready. Extension ID: ${extensionId}\n`);
+  process.stderr.write("[camoufox-cli] Restart any active session to apply:\n");
+  process.stderr.write("  camoufox-cli close && camoufox-cli open <url>\n");
+}
+
+function doCapsolverStatus(): void {
+  const cfg = readConfig();
+  const xpiExists = hasCapsolverXpi();
+  console.log(`API key:      ${cfg.capsolver_api_key ? "✓ set" : "✗ not set"}`);
+  console.log(`Extension ID: ${cfg.capsolver_extension_id ?? "✗ not set"}`);
+  console.log(`XPI:          ${xpiExists ? "✓ downloaded" : "✗ not downloaded"}`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -367,6 +426,18 @@ async function main() {
     if ((command.params as any)?.with_deps) {
       installSystemDeps();
     }
+    return;
+  }
+
+  // Client-side: capsolver-setup
+  if (action === "capsolver-setup") {
+    await doCapsolverSetup((command.params as any).api_key as string);
+    return;
+  }
+
+  // Client-side: capsolver-status
+  if (action === "capsolver-status") {
+    doCapsolverStatus();
     return;
   }
 
@@ -393,6 +464,21 @@ async function main() {
       catch (e: any) { process.stderr.write(`Failed to close session ${session}: ${e.message}\n`); }
     }
     return;
+  }
+
+  // If CapSolver XPI is present: validate API key and force persistent mode
+  if (hasCapsolverXpi()) {
+    const cfg = readConfig();
+    if (!cfg.capsolver_api_key) {
+      process.stderr.write(
+        "Error: CapSolver XPI found but API key is not set.\n" +
+        "Run: camoufox-cli capsolver-setup <your-api-key>\n"
+      );
+      process.exit(1);
+    }
+    if (!flags.persistent) {
+      flags.persistent = path.join(os.homedir(), ".camoufox-cli", "profiles", flags.session);
+    }
   }
 
   // Ensure daemon is running
@@ -460,7 +546,9 @@ Session:
   cookies [import|export] Manage cookies
 
 Setup:
-  install [--with-deps]   Download browser (--with-deps: system libs)
+  install [--with-deps]            Download browser (--with-deps: system libs)
+  capsolver-setup <api-key>        Download CapSolver extension and save API key
+  capsolver-status                 Show CapSolver configuration status
 
 Flags:
   --session <name>     Session name (default: "default")

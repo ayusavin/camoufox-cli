@@ -9,6 +9,14 @@ import subprocess
 import sys
 import time
 
+from .config import (
+    CAPSOLVER_XPI_PATH,
+    EXTENSIONS_DIR,
+    has_capsolver_xpi,
+    read_config,
+    write_config,
+)
+
 
 SOCKET_PREFIX = "/tmp/camoufox-cli-"
 
@@ -247,6 +255,13 @@ def build_command(action: str, rest: list[str]) -> dict:
         case "install":
             return {"id": "r1", "action": "install", "params": {"with_deps": "--with-deps" in rest}}
 
+        # CapSolver
+        case "capsolver-setup":
+            api_key = _require(rest, 1, "Usage: camoufox-cli capsolver-setup <api-key>")
+            return {"id": "r1", "action": "capsolver-setup", "params": {"api_key": api_key}}
+        case "capsolver-status":
+            return {"id": "r1", "action": "capsolver-status", "params": {}}
+
         # Session & Cookies
         case "sessions":
             return {"id": "r1", "action": "sessions", "params": {}}
@@ -362,6 +377,42 @@ def _install_system_deps() -> None:
     print("[camoufox-cli] System dependencies installed.", file=sys.stderr)
 
 
+def _do_capsolver_setup(api_key: str) -> None:
+    import urllib.request
+
+    print("[camoufox-cli] Fetching CapSolver extension info from Mozilla...", file=sys.stderr)
+    api_url = "https://services.addons.mozilla.org/api/v5/addons/addon/capsolver-captcha-solver/"
+    req = urllib.request.Request(api_url, headers={"User-Agent": "camoufox-cli/1.0"})
+    with urllib.request.urlopen(req) as resp:
+        meta = json.loads(resp.read())
+
+    extension_id: str = meta["guid"]
+    download_url: str = meta["current_version"]["file"]["url"]
+
+    print(f"[camoufox-cli] Downloading CapSolver XPI (id: {extension_id})...", file=sys.stderr)
+    EXTENSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(download_url, headers={"User-Agent": "camoufox-cli/1.0"})
+    with urllib.request.urlopen(req) as resp:
+        CAPSOLVER_XPI_PATH.write_bytes(resp.read())
+
+    cfg = read_config()
+    cfg["capsolver_api_key"] = api_key
+    cfg["capsolver_extension_id"] = extension_id
+    write_config(cfg)
+
+    print(f"[camoufox-cli] CapSolver ready. Extension ID: {extension_id}", file=sys.stderr)
+    print("[camoufox-cli] Restart any active session to apply:", file=sys.stderr)
+    print("  camoufox-cli close && camoufox-cli open <url>", file=sys.stderr)
+
+
+def _do_capsolver_status() -> None:
+    cfg = read_config()
+    xpi_exists = has_capsolver_xpi()
+    print(f"API key:      {'✓ set' if cfg.get('capsolver_api_key') else '✗ not set'}")
+    print(f"Extension ID: {cfg.get('capsolver_extension_id', '✗ not set')}")
+    print(f"XPI:          {'✓ downloaded' if xpi_exists else '✗ not downloaded'}")
+
+
 def main():
     args = sys.argv[1:]
     flags, command = parse_args(args)
@@ -381,6 +432,16 @@ def main():
         print("[camoufox-cli] Browser installed.", file=sys.stderr)
         if command.get("params", {}).get("with_deps"):
             _install_system_deps()
+        return
+
+    # Client-side: capsolver-setup
+    if action == "capsolver-setup":
+        _do_capsolver_setup(command["params"]["api_key"])
+        return
+
+    # Client-side: capsolver-status
+    if action == "capsolver-status":
+        _do_capsolver_status()
         return
 
     # Client-side: sessions
@@ -409,6 +470,19 @@ def main():
             except Exception as e:
                 print(f"Failed to close session {session}: {e}", file=sys.stderr)
         return
+
+    # If CapSolver XPI is present: validate API key and force persistent mode
+    if has_capsolver_xpi():
+        cfg = read_config()
+        if not cfg.get("capsolver_api_key"):
+            print(
+                "Error: CapSolver XPI found but API key is not set.\n"
+                "Run: camoufox-cli capsolver-setup <your-api-key>",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not flags["persistent"]:
+            flags["persistent"] = os.path.expanduser(f"~/.camoufox-cli/profiles/{flags['session']}")
 
     # Ensure daemon is running
     ensure_daemon(flags["session"], flags["headed"], flags["timeout"], flags["persistent"], flags["proxy"])
@@ -475,7 +549,9 @@ Session:
   cookies [import|export] Manage cookies
 
 Setup:
-  install [--with-deps]   Download browser (--with-deps: system libs)
+  install [--with-deps]            Download browser (--with-deps: system libs)
+  capsolver-setup <api-key>        Download CapSolver extension and save API key
+  capsolver-status                 Show CapSolver configuration status
 
 Flags:
   --session <name>     Session name (default: "default")

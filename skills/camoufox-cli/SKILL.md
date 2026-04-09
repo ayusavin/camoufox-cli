@@ -14,6 +14,35 @@ camoufox-cli is built on Camoufox (anti-detect Firefox) with C++-level fingerpri
 
 Use camoufox-cli instead of agent-browser when the target site has bot detection.
 
+## CAPTCHA Handling
+
+A **CapSolver** extension is pre-installed in the browser and handles CAPTCHAs automatically.
+
+- **CapSolver-supported CAPTCHAs** (reCAPTCHA, hCaptcha, image CAPTCHAs, etc.): the extension
+  solves them automatically in the background. If you see a CAPTCHA, wait 3–5 seconds before
+  retrying:
+  ```bash
+  camoufox-cli wait 5000
+  camoufox-cli snapshot -i
+  ```
+- **Cloudflare Turnstile** (pages with a `.ray-id` element or `challenges.cloudflare.com` iframe):
+  a background checker automatically clicks the Turnstile checkbox every 3 seconds.
+  If you land on a Turnstile challenge page, use `camoufox-cli wait 4000` and then proceed normally.
+
+If a CAPTCHA persists after waiting, the user will be prompted to solve it manually — the browser
+window may appear briefly; the user resolves it and automation continues.
+
+### CapSolver Setup (one-time, requires API key from capsolver.com)
+
+```bash
+camoufox-cli capsolver-setup CAP-yourApiKeyHere
+camoufox-cli capsolver-status   # verify: should show ✓ for all three lines
+```
+
+> **Important:** Before starting browser automation, verify CapSolver is configured:
+> `camoufox-cli capsolver-status`
+> If API key is missing, run `camoufox-cli capsolver-setup` first.
+
 ## Core Workflow
 
 Every browser automation follows this pattern:

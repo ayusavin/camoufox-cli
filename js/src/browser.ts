@@ -1,9 +1,12 @@
 /** Browser manager: launches and manages Camoufox instance. */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import { Camoufox, launchOptions } from "camoufox-js";
 import { firefox, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { RefRegistry } from "./refs.js";
+import { readConfig, CAPSOLVER_XPI_PATH, hasCapsolverXpi } from "./config.js";
 
 function ensureBrowserInstalled(): void {
   try {
@@ -12,6 +15,63 @@ function ensureBrowserInstalled(): void {
     throw new Error(
       "Browser not found. Run `camoufox-cli install` to download it."
     );
+  }
+}
+
+/** Copy CapSolver XPI into the Firefox profile's extensions directory. */
+function installCapsolverToProfile(profilePath: string): void {
+  const cfg = readConfig();
+  if (!cfg.capsolver_extension_id || !hasCapsolverXpi()) return;
+
+  const extDir = path.join(profilePath, "extensions");
+  fs.mkdirSync(extDir, { recursive: true });
+  const destXpi = path.join(extDir, `${cfg.capsolver_extension_id}.xpi`);
+  if (!fs.existsSync(destXpi)) {
+    fs.copyFileSync(CAPSOLVER_XPI_PATH, destXpi);
+  }
+}
+
+/**
+ * Configure CapSolver API key in the extension after browser launch.
+ * Reads the Firefox-assigned UUID from extensions-uuid.json, navigates to
+ * the extension's options page, and injects the key via chrome.storage / localStorage.
+ */
+async function configureCapsolverKey(context: BrowserContext, profilePath: string): Promise<void> {
+  const cfg = readConfig();
+  if (!cfg.capsolver_api_key || !cfg.capsolver_extension_id) return;
+
+  const uuidMapPath = path.join(profilePath, "extensions-uuid.json");
+  if (!fs.existsSync(uuidMapPath)) return; // Extension not yet registered by Firefox
+
+  let uuid: string;
+  try {
+    const uuidMap = JSON.parse(fs.readFileSync(uuidMapPath, "utf-8"));
+    uuid = uuidMap[cfg.capsolver_extension_id];
+    if (!uuid) return;
+  } catch {
+    return;
+  }
+
+  const optionsPage = await context.newPage();
+  try {
+    await optionsPage.goto(`moz-extension://${uuid}/options.html`, {
+      timeout: 5000,
+      waitUntil: "domcontentloaded",
+    });
+    await optionsPage.evaluate((key: string) => {
+      // Try chrome.storage.local first (CapSolver uses Chrome extension APIs),
+      // fall back to localStorage as a secondary mechanism.
+      const store =
+        (typeof chrome !== "undefined" && (chrome as any)?.storage?.local) ||
+        (typeof browser !== "undefined" && (browser as any)?.storage?.local);
+      if (store) store.set({ apiKey: key });
+      localStorage.setItem("capsolver_apikey", key);
+      localStorage.setItem("apiKey", key);
+    }, cfg.capsolver_api_key);
+  } catch {
+    // Options page not found or unavailable — non-fatal, user can configure manually
+  } finally {
+    try { await optionsPage.close(); } catch {}
   }
 }
 
@@ -53,10 +113,14 @@ export class BrowserManager {
     if (this.proxy) launchOpts.proxy = this.proxy;
 
     if (this.persistent) {
+      installCapsolverToProfile(this.persistent);
+
       const opts = await launchOptions(launchOpts);
       this.context = await firefox.launchPersistentContext(this.persistent, opts);
       const pages = this.context.pages();
       this.page = pages[0] || await this.context.newPage();
+
+      await configureCapsolverKey(this.context, this.persistent);
     } else {
       this.browser = await Camoufox(launchOpts) as Browser;
       this.page = await this.browser.newPage();
