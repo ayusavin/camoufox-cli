@@ -7,43 +7,50 @@ Anti-detect browser CLI & Skills for AI agents, powered by [Camoufox](https://gi
 - C++-level fingerprint spoofing via Camoufox (canvas, WebGL, audio, screen metrics, fonts)
 - Accessibility-tree snapshots with `@ref` element targeting
 - Session isolation with cookie import/export
+- **CapSolver integration** — auto-solves reCAPTCHA, hCaptcha, Cloudflare Turnstile
 - Shell commands, no code generation
 
 ### Works with
 
-OpenClaw, Claude Code, Cursor, Codex, and any agent that can run shell commands.
+Claude Code, Cursor, Codex, and any agent that can run shell commands.
 
 ## Install
 
-Tell your AI agent (e.g. OpenClaw):
-
-> Install this CLI and skills from https://github.com/Bin-Huang/camoufox-cli
-
-Or install manually:
+### Agent Skill (recommended)
 
 ```bash
-npm install -g camoufox-cli
-camoufox-cli install              # Download browser
+# Install the skill for Claude Code / Cursor / Codex
+npx skills add ayusavin/camoufox-cli
 ```
 
-Or with pip:
+Then tell your agent:
+
+> Use camoufox-cli to automate the browser
+
+Or tell it directly:
+
+> Install this CLI and skills from https://github.com/ayusavin/camoufox-cli
+
+### Manual install
 
 ```bash
-pipx install camoufox-cli
+# via npm (Node.js) — GitHub Packages
+npm install -g @ayusavin/camoufox-cli
 camoufox-cli install              # Download browser
-```
 
-On Linux, install system dependencies with:
+# via pip (Python) — GitHub Packages
+pip install --index-url https://pypi.pkg.github.com/ayusavin/simple/ camoufox-cli
+camoufox-cli install              # Download browser
 
-```bash
+# Linux: also install system dependencies
 camoufox-cli install --with-deps
 ```
 
-### Agent Skill
+### CapSolver setup (optional, for CAPTCHA auto-solving)
 
 ```bash
-# Add skills for AI agents (Claude Code, Cursor, Codex, etc.)
-npx skills add Bin-Huang/camoufox-cli
+camoufox-cli capsolver-setup CAP-yourApiKeyHere   # API key from capsolver.com
+camoufox-cli capsolver-status                      # verify
 ```
 
 ## Quick Start
@@ -97,6 +104,7 @@ camoufox-cli check @e6                    # Toggle checkbox
 camoufox-cli hover @e2                    # Hover over element
 camoufox-cli press Enter                  # Press keyboard key
 camoufox-cli press "Control+a"            # Key combination
+camoufox-cli mouse-click 222 144          # Click by pixel coordinates
 ```
 
 ### Data Extraction
@@ -144,6 +152,15 @@ camoufox-cli cookies import file.json     # Import cookies
 camoufox-cli cookies export file.json     # Export cookies
 ```
 
+### Setup
+
+```bash
+camoufox-cli install                      # Download Camoufox browser
+camoufox-cli install --with-deps          # + system libs (Linux)
+camoufox-cli capsolver-setup <api-key>    # Download CapSolver extension + save API key
+camoufox-cli capsolver-status             # Show CapSolver configuration
+```
+
 ## Flags
 
 ```
@@ -163,24 +180,6 @@ CLI (camoufox-cli)  ──Unix socket──▶  Daemon (Python)  ──Playwrigh
 
 The CLI sends JSON commands to a long-running daemon process via Unix socket. The daemon manages the Camoufox browser instance and maintains the ref registry between commands. The daemon auto-starts on the first command and auto-stops after 30 minutes of inactivity.
 
-## Related
-
-- [google-analytics-cli](https://github.com/Bin-Huang/google-analytics-cli) -- Google Analytics CLI & Skills for AI agents (and humans)
-- [google-search-console-cli](https://github.com/Bin-Huang/google-search-console-cli) -- Google Search Console CLI & Skills for AI agents (and humans)
-- [youtube-analytics-cli](https://github.com/Bin-Huang/youtube-analytics-cli) -- YouTube Analytics CLI & Skills for AI agents (and humans)
-- [x-analytics-cli](https://github.com/Bin-Huang/x-analytics-cli) -- X Analytics CLI & Skills for AI agents (and humans)
-- [google-ads-open-cli](https://github.com/Bin-Huang/google-ads-open-cli) -- Google Ads CLI & Skills for AI agents (and humans)
-- [meta-ads-open-cli](https://github.com/Bin-Huang/meta-ads-open-cli) -- Meta Ads CLI & Skills for AI agents (and humans)
-- [microsoft-ads-cli](https://github.com/Bin-Huang/microsoft-ads-cli) -- Microsoft Ads CLI & Skills for AI agents (and humans)
-- [amazon-ads-open-cli](https://github.com/Bin-Huang/amazon-ads-open-cli) -- Amazon Ads CLI & Skills for AI agents (and humans)
-- [tiktok-ads-cli](https://github.com/Bin-Huang/tiktok-ads-cli) -- TikTok Ads CLI & Skills for AI agents (and humans)
-- [linkedin-ads-cli](https://github.com/Bin-Huang/linkedin-ads-cli) -- LinkedIn Ads CLI & Skills for AI agents (and humans)
-- [x-ads-cli](https://github.com/Bin-Huang/x-ads-cli) -- X Ads CLI & Skills for AI agents (and humans)
-- [snapchat-ads-cli](https://github.com/Bin-Huang/snapchat-ads-cli) -- Snapchat Ads CLI & Skills for AI agents (and humans)
-- [pinterest-ads-cli](https://github.com/Bin-Huang/pinterest-ads-cli) -- Pinterest Ads CLI & Skills for AI agents (and humans)
-- [reddit-ads-cli](https://github.com/Bin-Huang/reddit-ads-cli) -- Reddit Ads CLI & Skills for AI agents (and humans)
-- [spotify-ads-cli](https://github.com/Bin-Huang/spotify-ads-cli) -- Spotify Ads CLI & Skills for AI agents (and humans)
-- [apple-ads-cli](https://github.com/Bin-Huang/apple-ads-cli) -- Apple Ads CLI & Skills for AI agents (and humans)
 ## License
 
 MIT

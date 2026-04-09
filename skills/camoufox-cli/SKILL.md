@@ -5,6 +5,33 @@ description: Anti-detect browser automation CLI & Skills for AI agents. Use when
 
 # Anti-Detect Browser Automation with camoufox-cli
 
+## Installation
+
+### Install skill (one command)
+
+```bash
+npx skills add ayusavin/camoufox-cli
+```
+
+### Install CLI
+
+```bash
+# Python (recommended)
+pipx install camoufox-cli
+camoufox-cli install
+
+# or Node.js
+npm install -g camoufox-cli
+camoufox-cli install
+```
+
+### CapSolver setup (optional — enables CAPTCHA auto-solving)
+
+```bash
+camoufox-cli capsolver-setup CAP-yourApiKeyHere   # from capsolver.com
+camoufox-cli capsolver-status                      # verify ✓ all three lines
+```
+
 ## What Makes This Different
 
 camoufox-cli is built on Camoufox (anti-detect Firefox) with C++-level fingerprint spoofing:
@@ -364,4 +391,4 @@ camoufox-cli snapshot -i
 
 ## Documentation
 
-- [camoufox-cli documentation](https://github.com/Bin-Huang/camoufox-cli) -- Full README, setup guide, installation, and command reference
+- [camoufox-cli documentation](https://github.com/ayusavin/camoufox-cli) -- Full README, setup guide, installation, and command reference

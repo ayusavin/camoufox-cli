@@ -1,0 +1,86 @@
+name: Publish to GitHub Packages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-python:
+    name: Publish Python package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Set dev version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          DEV_VERSION="0.3.0.dev${{ github.run_number }}+g${SHORT_SHA}"
+          sed -i "s/^version = .*/version = \"${DEV_VERSION}\"/" pyproject.toml
+          echo "Version: ${DEV_VERSION}"
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to GitHub Packages (PyPI feed)
+        run: |
+          pip install twine
+          twine upload \
+            --repository-url https://pypi.pkg.github.com/${{ github.repository_owner }} \
+            --username ${{ github.repository_owner }} \
+            --password ${{ secrets.GITHUB_TOKEN }} \
+            dist/*
+
+  publish-npm:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    defaults:
+      run:
+        working-directory: js
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@ayusavin"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set dev version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          DEV_VERSION="0.3.0-dev.${{ github.run_number }}+${SHORT_SHA}"
+          npm version "${DEV_VERSION}" --no-git-tag-version
+          echo "Version: ${DEV_VERSION}"
+
+      - name: Build
+        run: npm run build
+
+      - name: Copy assets
+        run: cp ../README.md ../LICENSE .
+
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
