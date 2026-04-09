@@ -16,12 +16,12 @@ npx skills add ayusavin/camoufox-cli
 ### Install CLI
 
 ```bash
-# Python (recommended)
-pipx install camoufox-cli
+# Python (from git)
+pip install git+https://github.com/ayusavin/camoufox-cli.git
 camoufox-cli install
 
-# or Node.js
-npm install -g camoufox-cli
+# or Node.js (GitHub Packages)
+npm install -g @ayusavin/camoufox-cli
 camoufox-cli install
 ```
 

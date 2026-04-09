@@ -38,8 +38,8 @@ Or tell it directly:
 npm install -g @ayusavin/camoufox-cli
 camoufox-cli install              # Download browser
 
-# via pip (Python) — GitHub Packages
-pip install --index-url https://pypi.pkg.github.com/ayusavin/simple/ camoufox-cli
+# via pip (Python) — install from git
+pip install git+https://github.com/ayusavin/camoufox-cli.git
 camoufox-cli install              # Download browser
 
 # Linux: also install system dependencies
