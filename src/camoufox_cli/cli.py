@@ -279,6 +279,18 @@ def build_command(action: str, rest: list[str]) -> dict:
             else:
                 return {"id": "r1", "action": "cookies", "params": {"op": "list"}}
 
+        case "requests":
+            if len(rest) > 1 and rest[1] == "clear":
+                return {"id": "r1", "action": "requests", "params": {"op": "clear"}}
+            params: dict = {}
+            if "--filter" in rest:
+                idx = rest.index("--filter")
+                params["filter"] = _require(rest, idx + 1, 'Usage: camoufox-cli requests --filter "pattern"')
+            if "--n" in rest:
+                idx = rest.index("--n")
+                params["n"] = int(_require(rest, idx + 1, "Usage: camoufox-cli requests --n 10"))
+            return {"id": "r1", "action": "requests", "params": params}
+
         case _:
             print(f"Unknown command: {action}\n{USAGE}", file=sys.stderr)
             sys.exit(1)
@@ -313,6 +325,23 @@ def print_response(response: dict, json_mode: bool) -> None:
         print("null" if v is None else json.dumps(v, ensure_ascii=False) if not isinstance(v, str) else v)
     elif data.get("closed"):
         pass  # silent
+    elif "requests" in data:
+        reqs = data["requests"]
+        if not reqs:
+            print("No requests captured.")
+            return
+        for r in reqs:
+            status = f" → {r['status']} {r.get('statusText', '')}".rstrip() if "status" in r else " → (pending)"
+            print(f"{r['method']} {r['url']}{status} [{r['resourceType']}]")
+            req_hdrs = ", ".join(f"{k}: {v}" for k, v in r.get("requestHeaders", {}).items())
+            if req_hdrs:
+                print(f"  Req: {req_hdrs}")
+            if r.get("requestBody"):
+                print(f"  Body: {r['requestBody']}")
+            if r.get("responseHeaders"):
+                res_hdrs = ", ".join(f"{k}: {v}" for k, v in r["responseHeaders"].items())
+                if res_hdrs:
+                    print(f"  Res: {res_hdrs}")
     elif "url" in data:
         if "title" in data:
             print(data["title"])
@@ -552,6 +581,12 @@ Tabs:
 Session:
   sessions                List active sessions
   cookies [import|export] Manage cookies
+
+Network:
+  requests                List captured requests
+  requests clear          Clear request buffer
+  requests --filter <s>   Filter by URL substring
+  requests --n <n>        Show last N requests
 
 Setup:
   install [--with-deps]            Download browser (--with-deps: system libs)

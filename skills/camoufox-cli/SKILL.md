@@ -86,6 +86,41 @@ camoufox-cli capsolver-status   # verify: should show ✓ for all three lines
 > `camoufox-cli capsolver-status`
 > If API key is missing, run `camoufox-cli capsolver-setup` first.
 
+## Network Inspection
+
+The browser captures all HTTP/HTTPS requests in a buffer (last 500). Use this to see what the
+page sends to the server — useful for discovering API endpoints, auth tokens, request shapes,
+and hidden fields like `clientIp` embedded in JS bundles.
+
+```bash
+camoufox-cli requests                         # all captured requests
+camoufox-cli requests --filter "api/"         # filter by URL substring
+camoufox-cli requests --n 20                  # last 20 requests
+camoufox-cli requests --json                  # full JSON with all headers + bodies
+camoufox-cli requests clear                   # clear the buffer
+```
+
+Each entry shows:
+```
+POST https://example.com/api/session → 200 OK [fetch]
+  Req: authorization: Bearer xxx, content-type: application/json
+  Body: {"username":"user","password":"pass"}
+  Res: content-type: application/json, x-request-id: abc123
+```
+
+**Typical recon workflow:**
+```bash
+camoufox-cli open https://example.com/login
+camoufox-cli requests clear                   # start fresh
+camoufox-cli fill @e1 "user" && camoufox-cli fill @e2 "pass" && camoufox-cli click @e3
+camoufox-cli requests --filter "api/"         # see what the login form actually sent
+```
+
+Use `--json` when you need the full headers/body for scripting:
+```bash
+camoufox-cli requests --filter "graphql" --json
+```
+
 ## Core Workflow
 
 Every browser automation follows this pattern:
@@ -177,6 +212,13 @@ camoufox-cli wait --url "*/dashboard" # Wait for URL pattern
 camoufox-cli tabs                    # List open tabs
 camoufox-cli switch 2                # Switch to tab by index
 camoufox-cli close-tab               # Close current tab
+
+# Network Inspection
+camoufox-cli requests                # List captured requests (method, URL, status, headers, body)
+camoufox-cli requests --filter "api" # Filter by URL substring
+camoufox-cli requests --n 20         # Last 20 requests
+camoufox-cli requests --json         # Full JSON output
+camoufox-cli requests clear          # Clear buffer
 
 # Cookies & State
 camoufox-cli cookies                 # Dump cookies as JSON

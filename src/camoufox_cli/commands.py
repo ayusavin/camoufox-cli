@@ -272,6 +272,20 @@ def _cmd_pdf(manager: BrowserManager, cmd_id: str, params: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Network requests
+# ---------------------------------------------------------------------------
+
+def _cmd_requests(manager: BrowserManager, cmd_id: str, params: dict) -> dict:
+    if params.get("op") == "clear":
+        manager.clear_requests()
+        return ok_response(cmd_id, {"cleared": True})
+    filter_str = params.get("filter")
+    n = params.get("n")
+    requests = manager.get_requests(filter_str=filter_str, n=int(n) if n is not None else None)
+    return ok_response(cmd_id, {"requests": requests})
+
+
+# ---------------------------------------------------------------------------
 # Scroll & Wait
 # ---------------------------------------------------------------------------
 
@@ -397,4 +411,6 @@ _HANDLERS = {
     "close-tab": _cmd_close_tab,
     # Cookies
     "cookies": _cmd_cookies,
+    # Network
+    "requests": _cmd_requests,
 }

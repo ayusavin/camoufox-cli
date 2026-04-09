@@ -144,6 +144,16 @@ camoufox-cli --session work open <url>    # Use named session
 camoufox-cli close --all                  # Close all sessions
 ```
 
+### Network Inspection
+
+```bash
+camoufox-cli requests                     # All captured requests (method, URL, status, headers, body)
+camoufox-cli requests --filter "api/"     # Filter by URL substring
+camoufox-cli requests --n 20              # Last 20 requests
+camoufox-cli requests --json              # Full JSON output
+camoufox-cli requests clear               # Clear buffer
+```
+
 ### Cookies
 
 ```bash

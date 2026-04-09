@@ -254,6 +254,17 @@ export function buildCommand(action: string, rest: string[]): Record<string, unk
       return { id: "r1", action: "cookies", params: { op: "list" } };
     }
 
+    case "requests": {
+      if (rest.length > 1 && rest[1] === "clear")
+        return { id: "r1", action: "requests", params: { op: "clear" } };
+      const params: Record<string, unknown> = {};
+      const filterIdx = rest.indexOf("--filter");
+      if (filterIdx >= 0) params.filter = require_(rest, filterIdx + 1, 'Usage: camoufox-cli requests --filter "pattern"');
+      const nIdx = rest.indexOf("--n");
+      if (nIdx >= 0) params.n = parseInt(require_(rest, nIdx + 1, "Usage: camoufox-cli requests --n 10"), 10);
+      return { id: "r1", action: "requests", params };
+    }
+
     default:
       process.stderr.write(`Unknown command: ${action}\n${USAGE}\n`);
       process.exit(1);
@@ -287,6 +298,22 @@ export function printResponse(response: Record<string, unknown>, jsonMode: boole
     console.log(v === null ? "null" : typeof v === "string" ? v : JSON.stringify(v));
   } else if (data.closed) {
     // silent
+  } else if ("requests" in data) {
+    const reqs = data.requests as any[];
+    if (reqs.length === 0) { console.log("No requests captured."); return; }
+    for (const r of reqs) {
+      const status = r.status != null ? ` → ${r.status} ${r.statusText ?? ""}`.trimEnd() : " → (pending)";
+      console.log(`${r.method} ${r.url}${status} [${r.resourceType}]`);
+      const reqHdrs = Object.entries(r.requestHeaders as Record<string, string>)
+        .map(([k, v]) => `${k}: ${v}`).join(", ");
+      if (reqHdrs) console.log(`  Req: ${reqHdrs}`);
+      if (r.requestBody) console.log(`  Body: ${r.requestBody}`);
+      if (r.responseHeaders) {
+        const resHdrs = Object.entries(r.responseHeaders as Record<string, string>)
+          .map(([k, v]) => `${k}: ${v}`).join(", ");
+        if (resHdrs) console.log(`  Res: ${resHdrs}`);
+      }
+    }
   } else if ("url" in data) {
     if ("title" in data) console.log(data.title);
     console.log(data.url);
@@ -547,6 +574,12 @@ Tabs:
 Session:
   sessions                List active sessions
   cookies [import|export] Manage cookies
+
+Network:
+  requests                List captured requests
+  requests clear          Clear request buffer
+  requests --filter <s>   Filter by URL substring
+  requests --n <n>        Show last N requests
 
 Setup:
   install [--with-deps]            Download browser (--with-deps: system libs)

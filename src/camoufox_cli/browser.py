@@ -5,14 +5,17 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 from camoufox.sync_api import Camoufox
-from playwright.sync_api import BrowserContext, Page
+from playwright.sync_api import BrowserContext, Page, Request, Response
 
 from .config import CAPSOLVER_XPI_PATH, has_capsolver_xpi, read_config
 from .refs import RefRegistry
+
+_MAX_REQUEST_BUFFER = 500
 
 
 def _ensure_browser_installed() -> None:
@@ -104,6 +107,49 @@ class BrowserManager:
         # so we track navigation history ourselves.
         self._history: list[str] = []
         self._history_index: int = -1
+        # Network capture
+        self._request_buffer: list[dict] = []
+        self._pending_requests: dict[int, tuple[Request, dict]] = {}
+        self._request_counter: int = 0
+
+    def _on_request(self, request: Request) -> None:
+        entry: dict = {
+            "id": self._request_counter,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "method": request.method,
+            "url": request.url,
+            "resourceType": request.resource_type,
+            "requestHeaders": dict(request.headers),
+            "requestBody": request.post_data,
+        }
+        self._request_counter += 1
+        self._pending_requests[id(request)] = (request, entry)
+        self._request_buffer.append(entry)
+        if len(self._request_buffer) > _MAX_REQUEST_BUFFER:
+            self._request_buffer.pop(0)
+
+    def _on_response(self, response: Response) -> None:
+        key = id(response.request)
+        pair = self._pending_requests.pop(key, None)
+        if pair:
+            _, entry = pair
+            entry["status"] = response.status
+            entry["statusText"] = response.status_text
+            entry["responseHeaders"] = dict(response.headers)
+
+    def _setup_network_capture(self, context: BrowserContext) -> None:
+        context.on("request", self._on_request)
+        context.on("response", self._on_response)
+
+    def get_requests(self, filter_str: str | None = None, n: int | None = None) -> list[dict]:
+        result = [r for r in self._request_buffer if filter_str is None or filter_str in r["url"]]
+        if n is not None and n > 0:
+            result = result[-n:]
+        return result
+
+    def clear_requests(self) -> None:
+        self._request_buffer.clear()
+        self._pending_requests.clear()
 
     def launch(self, headless: bool = True) -> None:
         if self._camoufox is not None:
@@ -151,6 +197,8 @@ class BrowserManager:
             # Normal mode: result is Browser, new_page() creates default context + page
             self._page = result.new_page()
             self._context = self._page.context
+
+        self._setup_network_capture(self._context)
 
     def get_page(self) -> Page:
         if self._page is None:
@@ -232,6 +280,8 @@ class BrowserManager:
             self._page = None
             self._history.clear()
             self._history_index = -1
+            self._request_buffer.clear()
+            self._pending_requests.clear()
 
     @property
     def is_running(self) -> bool:

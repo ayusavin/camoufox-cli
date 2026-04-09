@@ -4,9 +4,22 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import { Camoufox, launchOptions } from "camoufox-js";
-import { firefox, type Browser, type BrowserContext, type Page } from "playwright-core";
+import { firefox, type Browser, type BrowserContext, type Page, type Request, type Response } from "playwright-core";
 import { RefRegistry } from "./refs.js";
 import { readConfig, CAPSOLVER_XPI_PATH, hasCapsolverXpi } from "./config.js";
+
+export interface CapturedRequest {
+  id: number;
+  timestamp: string;
+  method: string;
+  url: string;
+  resourceType: string;
+  requestHeaders: Record<string, string>;
+  requestBody: string | null;
+  status?: number;
+  statusText?: string;
+  responseHeaders?: Record<string, string>;
+}
 
 function ensureBrowserInstalled(): void {
   try {
@@ -61,9 +74,10 @@ async function configureCapsolverKey(context: BrowserContext, profilePath: strin
     await optionsPage.evaluate((key: string) => {
       // Try chrome.storage.local first (CapSolver uses Chrome extension APIs),
       // fall back to localStorage as a secondary mechanism.
+      const g = globalThis as any;
       const store =
-        (typeof chrome !== "undefined" && (chrome as any)?.storage?.local) ||
-        (typeof browser !== "undefined" && (browser as any)?.storage?.local);
+        (typeof g.chrome !== "undefined" && g.chrome?.storage?.local) ||
+        (typeof g.browser !== "undefined" && g.browser?.storage?.local);
       if (store) store.set({ apiKey: key });
       localStorage.setItem("capsolver_apikey", key);
       localStorage.setItem("apiKey", key);
@@ -75,6 +89,8 @@ async function configureCapsolverKey(context: BrowserContext, profilePath: strin
   }
 }
 
+const MAX_REQUEST_BUFFER = 500;
+
 export class BrowserManager {
   refs = new RefRegistry();
   private browser: Browser | null = null;
@@ -84,10 +100,55 @@ export class BrowserManager {
   private proxy: string | null;
   private history: string[] = [];
   private historyIndex = -1;
+  private requestBuffer: CapturedRequest[] = [];
+  private pendingRequests: Map<Request, CapturedRequest> = new Map();
+  private requestCounter = 0;
 
   constructor(persistent: string | null = null, proxy: string | null = null) {
     this.persistent = persistent;
     this.proxy = proxy;
+  }
+
+  private setupNetworkCapture(context: BrowserContext): void {
+    context.on("request", (req: Request) => {
+      const entry: CapturedRequest = {
+        id: ++this.requestCounter,
+        timestamp: new Date().toISOString(),
+        method: req.method(),
+        url: req.url(),
+        resourceType: req.resourceType(),
+        requestHeaders: req.headers(),
+        requestBody: req.postData() ?? null,
+      };
+      this.pendingRequests.set(req, entry);
+      this.requestBuffer.push(entry);
+      if (this.requestBuffer.length > MAX_REQUEST_BUFFER) {
+        this.requestBuffer.shift();
+      }
+    });
+
+    context.on("response", (resp: Response) => {
+      const entry = this.pendingRequests.get(resp.request());
+      if (entry) {
+        entry.status = resp.status();
+        entry.statusText = resp.statusText();
+        entry.responseHeaders = resp.headers();
+        this.pendingRequests.delete(resp.request());
+      }
+    });
+  }
+
+  getRequests(filter?: string, n?: number): CapturedRequest[] {
+    let result = filter
+      ? this.requestBuffer.filter((r) => r.url.includes(filter))
+      : [...this.requestBuffer];
+    if (n != null && n > 0) result = result.slice(-n);
+    return result;
+  }
+
+  clearRequests(): void {
+    this.requestBuffer = [];
+    this.pendingRequests.clear();
   }
 
   async launch(headless: boolean = true): Promise<void> {
@@ -126,6 +187,8 @@ export class BrowserManager {
       this.page = await this.browser.newPage();
       this.context = this.page.context();
     }
+
+    this.setupNetworkCapture(this.context);
   }
 
   getPage(): Page {
@@ -213,6 +276,8 @@ export class BrowserManager {
     this.page = null;
     this.history = [];
     this.historyIndex = -1;
+    this.requestBuffer = [];
+    this.pendingRequests.clear();
   }
 
   get isRunning(): boolean {

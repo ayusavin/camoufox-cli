@@ -234,6 +234,21 @@ const cmdPdf: Handler = async (manager, cmdId, params) => {
 };
 
 // ---------------------------------------------------------------------------
+// Network requests
+// ---------------------------------------------------------------------------
+
+const cmdRequests: Handler = async (manager, cmdId, params) => {
+  if (params.op === "clear") {
+    manager.clearRequests();
+    return okResponse(cmdId, { cleared: true });
+  }
+  const filter = params.filter as string | undefined;
+  const n = params.n as number | undefined;
+  const requests = manager.getRequests(filter, n);
+  return okResponse(cmdId, { requests });
+};
+
+// ---------------------------------------------------------------------------
 // Scroll & Wait
 // ---------------------------------------------------------------------------
 
@@ -344,6 +359,7 @@ const HANDLERS: Record<string, Handler> = {
   switch: cmdSwitch,
   "close-tab": cmdCloseTab,
   cookies: cmdCookies,
+  requests: cmdRequests,
 };
 
 export async function execute(manager: BrowserManager, command: Record<string, unknown>): Promise<Response> {
