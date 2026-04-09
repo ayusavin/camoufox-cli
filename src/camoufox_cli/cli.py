@@ -205,6 +205,10 @@ def build_command(action: str, rest: list[str]) -> dict:
         case "press":
             key = _require(rest, 1, "Usage: camoufox-cli press Enter")
             return {"id": "r1", "action": "press", "params": {"key": key}}
+        case "mouse-click":
+            x = _require(rest, 1, "Usage: camoufox-cli mouse-click <x> <y>")
+            y = _require(rest, 2, "Usage: camoufox-cli mouse-click <x> <y>")
+            return {"id": "r1", "action": "mouse-click", "params": {"x": float(x), "y": float(y)}}
 
         # Data extraction
         case "text":
@@ -528,6 +532,7 @@ Interaction:
   check @ref              Toggle checkbox
   hover @ref              Hover over element
   press <key>             Press key (e.g. Enter, Control+a)
+  mouse-click <x> <y>    Click at pixel coordinates (bypasses cross-origin iframes)
 
 Data:
   text @ref|selector      Get text content

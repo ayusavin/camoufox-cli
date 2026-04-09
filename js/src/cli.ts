@@ -203,6 +203,8 @@ export function buildCommand(action: string, rest: string[]): Record<string, unk
       return { id: "r1", action: "hover", params: { ref: require_(rest, 1, "Usage: camoufox-cli hover @e1") } };
     case "press":
       return { id: "r1", action: "press", params: { key: require_(rest, 1, "Usage: camoufox-cli press Enter") } };
+    case "mouse-click":
+      return { id: "r1", action: "mouse-click", params: { x: parseFloat(require_(rest, 1, "Usage: camoufox-cli mouse-click <x> <y>")), y: parseFloat(require_(rest, 2, "Usage: camoufox-cli mouse-click <x> <y>")) } };
 
     case "text":
       return { id: "r1", action: "text", params: { target: require_(rest, 1, "Usage: camoufox-cli text @e1") } };
@@ -525,6 +527,7 @@ Interaction:
   check @ref              Toggle checkbox
   hover @ref              Hover over element
   press <key>             Press key (e.g. Enter, Control+a)
+  mouse-click <x> <y>    Click at pixel coordinates (bypasses cross-origin iframes)
 
 Data:
   text @ref|selector      Get text content

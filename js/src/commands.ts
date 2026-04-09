@@ -163,6 +163,14 @@ const cmdPress: Handler = async (manager, cmdId, params) => {
   return okResponse(cmdId);
 };
 
+const cmdMouseClick: Handler = async (manager, cmdId, params) => {
+  const x = params.x as number;
+  const y = params.y as number;
+  if (x == null || y == null) return errorResponse(cmdId, "Missing 'x' or 'y' parameter");
+  await manager.getPage().mouse.click(x, y);
+  return okResponse(cmdId);
+};
+
 // ---------------------------------------------------------------------------
 // Data extraction
 // ---------------------------------------------------------------------------
@@ -325,6 +333,7 @@ const HANDLERS: Record<string, Handler> = {
   check: cmdCheck,
   hover: cmdHover,
   press: cmdPress,
+  "mouse-click": cmdMouseClick,
   text: cmdText,
   eval: cmdEval,
   screenshot: cmdScreenshot,

@@ -205,6 +205,15 @@ def _cmd_press(manager: BrowserManager, cmd_id: str, params: dict) -> dict:
     return ok_response(cmd_id)
 
 
+def _cmd_mouse_click(manager: BrowserManager, cmd_id: str, params: dict) -> dict:
+    x = params.get("x")
+    y = params.get("y")
+    if x is None or y is None:
+        return error_response(cmd_id, "Missing 'x' or 'y' parameter")
+    manager.get_page().mouse.click(float(x), float(y))
+    return ok_response(cmd_id)
+
+
 # ---------------------------------------------------------------------------
 # Data extraction
 # ---------------------------------------------------------------------------
@@ -373,6 +382,7 @@ _HANDLERS = {
     "check": _cmd_check,
     "hover": _cmd_hover,
     "press": _cmd_press,
+    "mouse-click": _cmd_mouse_click,
     # Data extraction
     "text": _cmd_text,
     "eval": _cmd_eval,

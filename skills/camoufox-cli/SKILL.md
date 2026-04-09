@@ -29,7 +29,23 @@ A **CapSolver** extension is pre-installed in the browser and handles CAPTCHAs a
   a background checker automatically clicks the Turnstile checkbox every 3 seconds.
   If you land on a Turnstile challenge page, use `camoufox-cli wait 4000` and then proceed normally.
 
-If a CAPTCHA persists after waiting, the user will be prompted to solve it manually — the browser
+If a CAPTCHA persists after `wait 5000`, the checkbox may not be reachable via ARIA refs
+(Turnstile lives in a cross-origin iframe). Use the screenshot + coordinate click fallback:
+
+```bash
+# 1. Screenshot to see the current state and locate the Turnstile checkbox visually
+camoufox-cli screenshot /tmp/captcha_state.png
+# 2. Click the checkbox by pixel coordinates (bypasses cross-origin iframe restrictions)
+camoufox-cli mouse-click <x> <y>
+# 3. Confirm result
+camoufox-cli wait 2000
+camoufox-cli screenshot /tmp/captcha_after.png
+```
+
+The Turnstile "Verify you are human" checkbox is typically the small square on the left side
+of the dark widget bar. Read the screenshot image to determine the exact coordinates.
+
+If even that fails, the user will be prompted to solve it manually — the browser
 window may appear briefly; the user resolves it and automation continues.
 
 ### CapSolver Setup (one-time, requires API key from capsolver.com)
